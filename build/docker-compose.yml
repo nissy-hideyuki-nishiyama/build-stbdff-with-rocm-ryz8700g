@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   comfyui:
     # 1. 上記のDockerfileからイメージをビルドする場合
@@ -12,7 +10,7 @@ services:
     
     # ポートマッピング: ホストの8188ポートをコンテナの8188ポートに接続
     ports:
-      - "8188:8188"
+      - '8188:8188'
       
     # ROCm/GPUへのアクセス設定（必須）
     devices:
@@ -29,23 +27,40 @@ services:
       - ${HOME}/workdir/rocm/comfy_data/models/checkpoints:/app/ComfyUI/models/checkpoints
       
       # ホストの出力フォルダをコンテナ内にマウント
-      - ${HOME}/workdir/rocm/comfy_data/output:/app/ComfyUI/output
+      # - ${HOME}/workdir/rocm/comfy_data/output:/app/ComfyUI/output
       
       # カスタムノードの管理
-      - ${HOME}/workdir/rocm/comfy_data/custom_nodes:/app/ComfyUI/custom_nodes
+      # - ${HOME}/workdir/rocm/comfy_data/custom_nodes:/app/ComfyUI/custom_nodes
 
     # 8700G (gfx1103) のプレビューサポートに推奨される環境変数
     environment:
       # Ryzen 7 8700G (Rembrandt) ではエラーになるので、RDNA3を指定する
       # - HSA_OVERRIDE_GFX_VERSION=11.0.3
-      - HSA_OVERRIDE_GFX_VERSION=11.0.0
+      HSA_OVERRIDE_GFX_VERSION: "11.0.0"
       # PyTorchの最適化オプション
-      - TORCH_COMMAND_LINE="--opt-sdp-attention"
+      TORCH_COMMAND_LINE: "--opt-sdp-attention"
       # VRAM不足時のための設定（任意）
-      - PYTORCH_HIP_ALLOC_CONF="garbage_collection_threshold:0.9,max_split_size_mb:512"
-      
-    # ホストネットワークモードを利用すると、ポート開放が不要になるが、
-    # `network_mode: "host"`を指定する場合はports行は削除する必要があります。
-    # ここではportsマッピングの標準的な方法を採用します。
-    #
-    # docker run -d --name comfyui_rocm --network host --device /dev/kfd --device /dev/dri \
+      PYTORCH_HIP_ALLOC_CONF: "garbage_collection_threshold:0.9,max_split_size_mb:512"
+    
+    # 起動時の実行コマンド (docker run の末尾のコマンドに相当)
+    # これにより、ComfyUIが指定されたオプションで起動されます。
+    command: 
+      [
+        "python3", 
+        "/app/ComfyUI/main.py", 
+        "--listen", "0.0.0.0", 
+        "--port", "8188", 
+        "--lowvram", 
+        "--cpu-vae"
+      ]
+    
+    # デタッチモード (docker run -d に相当)
+    # docker compose up で起動する際に -d オプションを指定すれば不要ですが、
+    # ここで設定することで、コンテナが予期せず終了した際に再起動させることも可能です。
+    # restart: unless-stopped
+    
+    # TTY割り当てと標準入出力の保持 (docker run -it に相当)
+    # 通常、-d (デタッチモード)と組み合わせて使用されるため、
+    # docker-composeではこの記述は省略されることが多いですが、必要に応じて含めます。
+    # tty: true
+    # stdin_open: true
