@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  comfyui:
+    # 1. 上記のDockerfileからイメージをビルドする場合
+    # build: .
+    # 2. 事前にビルドしたイメージや公開されているイメージを使う場合
+    # image: your_username/comfyui-rocm:latest
+    image: rocm/comfy_hnishi:latest
+    
+    container_name: comfyui_rocm
+    
+    # ポートマッピング: ホストの8188ポートをコンテナの8188ポートに接続
+    ports:
+      - "8188:8188"
+      
+    # ROCm/GPUへのアクセス設定（必須）
+    devices:
+      # メインのコンピュートインターフェース
+      - /dev/kfd
+      # Direct Rendering Interface (DRI)
+      - /dev/dri
+      
+    # 永続化のためのボリュームマウント
+    volumes:
+      # ホストのモデル/設定フォルダをコンテナ内にマウント
+      # ホスト側: ~/comfy_data/models/checkpoints (Stable Diffusionモデル)
+      # コンテナ側: /app/ComfyUI/models/checkpoints
+      - ${HOME}/workdir/rocm/comfy_data/models/checkpoints:/app/ComfyUI/models/checkpoints
+      
+      # ホストの出力フォルダをコンテナ内にマウント
+      - ${HOME}/workdir/rocm/comfy_data/output:/app/ComfyUI/output
+      
+      # カスタムノードの管理
+      - ${HOME}/workdir/rocm/comfy_data/custom_nodes:/app/ComfyUI/custom_nodes
+
+    # 8700G (gfx1103) のプレビューサポートに推奨される環境変数
+    environment:
+      # Ryzen 7 8700G (Rembrandt) ではエラーになるので、RDNA3を指定する
+      # - HSA_OVERRIDE_GFX_VERSION=11.0.3
+      - HSA_OVERRIDE_GFX_VERSION=11.0.0
+      # PyTorchの最適化オプション
+      - TORCH_COMMAND_LINE="--opt-sdp-attention"
+      # VRAM不足時のための設定（任意）
+      - PYTORCH_HIP_ALLOC_CONF="garbage_collection_threshold:0.9,max_split_size_mb:512"
+      
+    # ホストネットワークモードを利用すると、ポート開放が不要になるが、
+    # `network_mode: "host"`を指定する場合はports行は削除する必要があります。
+    # ここではportsマッピングの標準的な方法を採用します。
+    #
+    # docker run -d --name comfyui_rocm --network host --device /dev/kfd --device /dev/dri \
